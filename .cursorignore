@@ -1,0 +1,10 @@
+# Data files
+*.csv
+
+# Large files
+*.parquet
+*.db
+
+# Temporary files
+/tmp/
+*.log
