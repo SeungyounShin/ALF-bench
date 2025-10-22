@@ -2,7 +2,9 @@
 
 현실적인 Customer Service Agent 벤치마크. RAG, multi-turn 대화, tool 사용, 그리고 multimodal 상호작용에 초점을 맞춥니다.
 
-![ALF-Bench 다이어그램](misc/chart.png)
+<p align="center">
+  <img src="misc/chart.png" alt="ALF-Bench 다이어그램" width="80%" />
+</p>
 
 ## 🎯 연구 목표
 
