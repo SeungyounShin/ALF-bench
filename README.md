@@ -2,6 +2,8 @@
 
 현실적인 Customer Service Agent 벤치마크. RAG, multi-turn 대화, tool 사용, 그리고 multimodal 상호작용에 초점을 맞춥니다.
 
+![ALF-Bench 다이어그램](misc/chart.png)
+
 ## 🎯 연구 목표
 
 기존 벤치마크(TAU2, VITA)와 달리, 실제 고객 서비스 환경에서 가장 많이 발생하는 **RAG 기반 문의 응대**에 집중:

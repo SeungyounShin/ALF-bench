@@ -236,8 +236,8 @@ def main():
     # Initialize environment
     print("🚀 Initializing Channel Talk Environment...")
     env = ChannelEnv(
-        agent_model="gpt-4.1",
-        user_model="gpt-5",
+        agent_model="gpt-4o",
+        user_model="gpt-4.1",
         judge_model="gpt-5",
         max_turns=10,
         use_judge=True,

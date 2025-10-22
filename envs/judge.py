@@ -4,7 +4,8 @@ Evaluates agent performance based on reference answers.
 """
 
 import json
-from typing import Dict, List, Optional
+import re
+from typing import Any, Dict, List, Optional
 from litellm import completion
 
 
@@ -102,7 +103,7 @@ Be strict but fair. Consider:
                     {"role": "user", "content": prompt},
                 ],
                 "temperature": temperature,
-                "max_tokens": 800,
+                # "max_tokens": 800,
                 "response_format": {"type": "json_object"},
             }
             
@@ -111,8 +112,9 @@ Be strict but fair. Consider:
                 completion_params["reasoning_effort"] = "high"  # Judge uses high effort for accuracy
             
             response = completion(**completion_params)
+            # import pdb; pdb.set_trace()
 
-            result = json.loads(response.choices[0].message.content)
+            result = self._parse_judge_response(response.choices[0].message)
 
             # Ensure all keys exist
             required_keys = [
@@ -142,6 +144,59 @@ Be strict but fair. Consider:
                 "reasoning": f"Evaluation error: {str(e)}",
             }
 
+    def _parse_judge_response(self, message: Any) -> Dict:
+        """Parse judge response, handling structured outputs from different models."""
+        parsed_payload = getattr(message, "parsed", None)
+
+        if parsed_payload is not None:
+            if isinstance(parsed_payload, dict):
+                return parsed_payload
+            if isinstance(parsed_payload, list) and parsed_payload and isinstance(parsed_payload[0], dict):
+                return parsed_payload[0]
+            if hasattr(parsed_payload, "dict"):
+                return parsed_payload.dict()
+            if isinstance(parsed_payload, str):
+                try:
+                    return json.loads(parsed_payload)
+                except json.JSONDecodeError:
+                    pass
+
+        content = getattr(message, "content", "") or ""
+
+        if isinstance(content, list):
+            extracted_parts: List[str] = []
+            for part in content:
+                if not isinstance(part, dict):
+                    continue
+
+                part_type = part.get("type")
+                if part_type in {"text", "output_text"}:
+                    extracted_parts.append(part.get("text", ""))
+                elif part_type == "tool_result":
+                    # tool_result payloads are dicts; try to pull text field if present
+                    if isinstance(part.get("content"), list):
+                        for inner in part["content"]:
+                            if isinstance(inner, dict) and inner.get("type") in {"text", "output_text"}:
+                                extracted_parts.append(inner.get("text", ""))
+                elif part_type == "message" and "content" in part:
+                    extracted_parts.append(str(part["content"]))
+
+            content = "".join(extracted_parts)
+
+        if not isinstance(content, str):
+            raise ValueError("Unsupported judge response content type")
+
+        content = content.strip()
+        if not content:
+            raise ValueError("Judge response did not contain any content")
+
+        content = self._extract_json_blob(content)
+
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Judge returned invalid JSON: {content}") from exc
+
     def _format_conversation(self, conversation_history: List[Dict]) -> str:
         """Format conversation history for evaluation."""
         lines = []
@@ -165,6 +220,19 @@ Be strict but fair. Consider:
                 lines.append(f"User: {entry['user']}")
 
         return "\n".join(lines)
+
+    def _extract_json_blob(self, text: str) -> str:
+        """Return JSON object substring, removing code fences when present."""
+        if text.startswith("```"):
+            lines = text.splitlines()
+            if lines and lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].startswith("```"):
+                lines = lines[:-1]
+            text = "\n".join(lines)
+
+        match = re.search(r"{.*}", text, re.DOTALL)
+        return match.group(0) if match else text
 
     def calculate_reward(self, evaluation: Dict) -> float:
         """
@@ -197,4 +265,3 @@ Be strict but fair. Consider:
             reward = (weighted_score - 5) / 5  # Maps 5-10 to 0-1
 
         return reward
-
